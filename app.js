@@ -4,10 +4,7 @@
   var useState = React.useState;
   var useEffect = React.useEffect;
 
-  var LS_EMPLOYEES = "att_employees_v1";
-  var LS_RECORDS = "att_records_v1";
-  var LS_SETTINGS = "att_settings_v1";
-
+  var KEYS = { employees: "att_employees_v1", records: "att_records_v1", settings: "att_settings_v1" };
   var STATUS = {
     present: { label: "حاضر", short: "ح", color: "#22C55E" },
     absent: { label: "غائب", short: "غ", color: "#EF4444" },
@@ -15,504 +12,93 @@
     leave: { label: "إجازة", short: "إ", color: "#3B82F6" },
     sick: { label: "مرضي", short: "م", color: "#A855F7" }
   };
-  var STATUS_ORDER = ["present", "absent", "late", "leave", "sick"];
-  var WEEKDAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  var WEEKDAY_SHORT = ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
-  var MONTH_NAMES = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  var ORDER = ["present", "absent", "late", "leave", "sick"];
+  var WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  var MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  var C = { bg: "#0F1420", panel: "#171E2E", panel2: "#1B2436", border: "#2A3346", text: "#E7ECF7", dim: "#8B93A7", accent: "#4C7CF3" };
 
-  function loadJSON(key, fallback) {
-    try {
-      var raw = localStorage.getItem(key);
-      if (!raw) return fallback;
-      return JSON.parse(raw);
-    } catch (e) {
-      return fallback;
-    }
-  }
-  function saveJSON(key, val) {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
-  }
-  function pad2(n) { return n < 10 ? "0" + n : String(n); }
-  function toISO(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
-  function parseISO(s) {
-    var parts = s.split("-").map(Number);
-    return new Date(parts[0], parts[1] - 1, parts[2]);
-  }
-  function fmtDMY(d) { return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) + "/" + d.getFullYear(); }
-  function fmtNow() {
-    var d = new Date();
-    return fmtDMY(d) + " - " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
-  }
-  function getWeekStart(d) {
-    var day = d.getDay();
-    var diff = (day + 1) % 7;
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - diff);
-  }
-  function getWeekDays(anyDateISO) {
-    var start = getWeekStart(parseISO(anyDateISO));
-    var days = [];
-    for (var i = 0; i < 7; i++) days.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
-    return days;
-  }
-  function getMonthDays(year, monthIndex0) {
-    var n = new Date(year, monthIndex0 + 1, 0).getDate();
-    var days = [];
-    for (var i = 1; i <= n; i++) days.push(new Date(year, monthIndex0, i));
-    return days;
-  }
+  function load(k, fallback) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+  function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function date(s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function displayDate(s) { return s ? s.split("-").reverse().join("/") : ""; }
+  function daysBetween(from, to) { var a = date(from), b = date(to), out = []; for (var d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) out.push(new Date(d)); return out; }
+  function firstDayOfMonth() { var d = new Date(); return iso(new Date(d.getFullYear(), d.getMonth(), 1)); }
+  function today() { return iso(new Date()); }
+  function inputStyle() { return { background: C.panel2, border: "1px solid " + C.border, color: C.text, borderRadius: 9, padding: "9px 11px", fontFamily: "inherit", fontSize: 13 }; }
+  function Btn(p) { return h("button", { type: "button", onClick: p.onClick, style: Object.assign({ border: "1px solid " + (p.active ? p.activeColor || C.accent : C.border), background: p.active ? p.activeColor || C.accent : "transparent", color: p.color || "#fff", padding: p.small ? "6px 10px" : "9px 15px", borderRadius: 9, fontWeight: 700, cursor: "pointer" }, p.style || {}) }, p.children); }
+  function Card(p) { return h("div", { style: Object.assign({ background: C.panel, border: "1px solid " + C.border, borderRadius: 16, padding: 18, animation: "fadeIn .25s ease" }, p.style || {}) }, p.children); }
+  function Stat(p) { return h("div", { style: { background: C.panel2, border: "1px solid " + C.border, borderRadius: 13, padding: "15px 12px", textAlign: "center", flex: 1, minWidth: 130 } }, [h("div", { style: { color: p.color || C.accent, fontSize: 25, fontWeight: 800 } }, p.value), h("div", { style: { color: C.dim, fontSize: 12, marginTop: 3 } }, p.label)]); }
 
-  var COLORS = {
-    bg: "#0F1420",
-    panel: "#171E2E",
-    panel2: "#1B2436",
-    border: "#2A3346",
-    text: "#E7ECF7",
-    textDim: "#8B93A7",
-    accent: "#4C7CF3",
-    accentDim: "#28365E"
-  };
-
-  function Btn(props) {
-    var style = Object.assign({
-      border: "1px solid " + (props.border || COLORS.border),
-      background: props.active ? (props.activeColor || COLORS.accent) : (props.bg || "transparent"),
-      color: props.active ? "#fff" : (props.color || COLORS.text),
-      padding: props.small ? "6px 10px" : "9px 16px",
-      borderRadius: "10px",
-      fontSize: props.small ? "12px" : "13.5px",
-      fontWeight: "700",
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "6px",
-      transition: "all .15s",
-      boxShadow: props.active ? "0 8px 18px " + (props.activeColor || COLORS.accent) + "55" : "none"
-    }, props.style || {});
-    return h("button", { onClick: props.onClick, style: style, type: "button", disabled: props.disabled }, props.children);
-  }
-
-  function Card(props) {
-    return h("div", { style: Object.assign({ background: COLORS.panel, border: "1px solid " + COLORS.border, borderRadius: "16px", padding: "18px", animation: "fadeIn .25s ease" }, props.style || {}) }, props.children);
-  }
-
-  function buildRangeData(employees, records, days) {
-    var perEmployee = employees.map(function (emp) {
-      var counts = { present: 0, absent: 0, late: 0, leave: 0, sick: 0, unmarked: 0 };
-      var cells = days.map(function (d) {
-        var iso = toISO(d);
-        var st = (records[emp.id] || {})[iso] || null;
-        if (st && counts.hasOwnProperty(st)) counts[st]++;
-        else counts.unmarked++;
-        return { date: d, status: st };
-      });
-      return { employee: emp, cells: cells, counts: counts };
+  function ExcelExport(employees, records, from, to, employeeId) {
+    if (!window.XLSX) return window.alert("مكتبة Excel غير متاحة.");
+    var rows = [], dates = daysBetween(from, to);
+    employees.filter(function (e) { return employeeId === "all" || e.id === employeeId; }).forEach(function (e) {
+      dates.forEach(function (d) { var s = (records[e.id] || {})[iso(d)] || ""; rows.push({ "الموظف": e.name, "المسمى الوظيفي": e.jobTitle || "", "التاريخ": iso(d), "اليوم": WEEKDAYS[d.getDay()], "الحالة": s ? STATUS[s].label : "بدون تسجيل" }); });
     });
-
-    var totalsByDay = days.map(function (d, idx) {
-      var t = { present: 0, absent: 0, late: 0, leave: 0, sick: 0 };
-      perEmployee.forEach(function (row) {
-        var st = row.cells[idx].status;
-        if (st && t.hasOwnProperty(st)) t[st]++;
-      });
-      return t;
-    });
-
-    var grand = { present: 0, absent: 0, late: 0, leave: 0, sick: 0 };
-    perEmployee.forEach(function (row) {
-      STATUS_ORDER.forEach(function (k) { grand[k] += row.counts[k]; });
-    });
-    var markedTotal = grand.present + grand.absent + grand.late + grand.leave + grand.sick;
-    var attendanceRate = markedTotal > 0 ? Math.round(((grand.present + grand.late) / markedTotal) * 100) : 0;
-    return { perEmployee: perEmployee, totalsByDay: totalsByDay, grand: grand, attendanceRate: attendanceRate };
+    var ws = XLSX.utils.json_to_sheet(rows); ws["!cols"] = [{ wch: 24 }, { wch: 20 }, { wch: 15 }, { wch: 14 }, { wch: 16 }];
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "التقرير"); XLSX.writeFile(wb, "تقرير_الحضور_" + from + "_" + to + ".xlsx");
   }
 
-  function StatusDot(status) {
-    var meta = STATUS[status];
-    return h("span", { key: status }, [
-      h("span", { key: "d", className: "pr-dot", style: { background: meta.color } }),
-      meta.label
-    ]);
-  }
-
-  function ReportHeader(props) {
-    return h("div", { className: "pr-header" }, [
-      h("div", { key: "l" }, [h("p", { key: "t", className: "pr-title" }, props.title), h("p", { key: "s", className: "pr-sub" }, props.subtitle)]),
-      h("div", { key: "r", className: "pr-meta" }, [h("div", { key: "1" }, "الشركة: " + props.companyName), h("div", { key: "2" }, "تاريخ الإصدار: " + fmtNow())])
-    ]);
-  }
-
-  function InfoBar(props) {
-    return h("div", { className: "pr-infobar" }, props.items.map(function (it, i) { return h("div", { key: i, className: "pr-info-card" }, [it.label, h("b", { key: "b" }, it.value)]); }));
-  }
-
-  function Legend() {
-    return h("div", { className: "pr-legend" }, STATUS_ORDER.map(function (k) { return StatusDot(k); }).concat([h("span", { key: "u" }, [h("span", { key: "d", className: "pr-dot", style: { background: "#ccc" } }), "بدون تسجيل"]) ]));
-  }
-
-  function SummaryCards(data) {
-    var g = data.grand;
-    var cards = [
-      { label: "أيام الحضور", num: g.present, color: STATUS.present.color },
-      { label: "أيام الغياب", num: g.absent, color: STATUS.absent.color },
-      { label: "مرات التأخير", num: g.late, color: STATUS.late.color },
-      { label: "نسبة الالتزام", num: data.attendanceRate + "%", color: COLORS.accent }
-    ];
-    return h("div", { className: "pr-summary" }, cards.map(function (c, i) {
-      return h("div", { key: i, className: "pr-summary-card" }, [
-        h("div", { key: "n", className: "pr-summary-num", style: { color: c.color } }, c.num),
-        h("div", { key: "l", className: "pr-summary-label" }, c.label)
-      ]);
-    }));
-  }
-
-  function Badge(status) {
-    if (!status) return h("span", { style: { color: "#bbb" } }, "—");
-    var meta = STATUS[status];
-    return h("span", { className: "pr-status-badge", style: { background: meta.color, color: "#fff" } }, meta.short);
-  }
-
-  function WeeklyTable(data, days) {
-    return h("table", { key: "table" }, [
-      h("thead", { key: "thead" }, h("tr", null, [h("th", { key: "name" }, "الموظف")].concat(days.map(function (d, i) { return h("th", { key: i }, WEEKDAY_SHORT[d.getDay()] + " " + pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1)); })).concat([h("th", { key: "tot" }, "الحضور / الغياب")] ))),
-      h("tbody", { key: "tbody" }, data.perEmployee.map(function (row, ri) {
-        return h("tr", { key: ri }, [h("td", { key: "name" }, row.employee.name)].concat(row.cells.map(function (c, ci) { return h("td", { key: ci }, Badge(c.status)); })).concat([h("td", { key: "tot" }, row.counts.present + " / " + row.counts.absent)]));
-      })),
-      h("tfoot", { key: "tfoot" }, h("tr", null, [h("td", { key: "l" }, "الإجمالي")].concat(data.totalsByDay.map(function (t, i) { return h("td", { key: i }, t.present + "ح / " + t.absent + "غ"); })).concat([h("td", { key: "g" }, data.grand.present + " / " + data.grand.absent)])))
-    ]);
-  }
-
-  function MonthlyTable(data, days) {
-    return h("table", { key: "table" }, [
-      h("thead", { key: "thead" }, h("tr", null, [h("th", { key: "name" }, "الموظف")].concat(days.map(function (d, i) { return h("th", { key: i }, d.getDate()); })).concat([h("th", { key: "tot" }, "ح / غ / ت")] ))),
-      h("tbody", { key: "tbody" }, data.perEmployee.map(function (row, ri) {
-        return h("tr", { key: ri }, [h("td", { key: "name" }, row.employee.name)].concat(row.cells.map(function (c, ci) { return h("td", { key: ci }, Badge(c.status)); })).concat([h("td", { key: "tot" }, row.counts.present + " / " + row.counts.absent + " / " + row.counts.late)]));
-      })),
-      h("tfoot", { key: "tfoot" }, h("tr", null, [h("td", { key: "l" }, "الإجمالي")].concat(data.totalsByDay.map(function (t, i) { return h("td", { key: i }, t.present); })).concat([h("td", { key: "g" }, data.grand.present + " / " + data.grand.absent + " / " + data.grand.late)])))
-    ]);
-  }
-
-  function ReportFooter() {
-    return h("div", { className: "pr-footer" }, [
-      h("div", { key: "l" }, "تم إنشاء هذا التقرير آليًا بواسطة نظام سجل الحضور - " + fmtNow()),
-      h("div", { key: "r" }, ["توقيع المسؤول: ", h("span", { key: "s", className: "pr-sign-line" })])
-    ]);
-  }
-
-  function Notes(list) {
-    return h("div", { className: "pr-notes" }, [
-      h("div", { key: "t", className: "pr-notes-title" }, "ملاحظات"),
-      h("ul", { key: "u" }, list.map(function (n, i) { return h("li", { key: i }, n); }))
-    ]);
-  }
-
-  function WeeklyReportBody(props) {
-    var days = getWeekDays(props.anchorISO);
-    var data = buildRangeData(props.employees, props.records, days);
-    var periodLabel = fmtDMY(days[0]) + " إلى " + fmtDMY(days[6]);
-    return h("div", null, [
-      h(ReportHeader, { key: "h", title: "التقرير الأسبوعي للحضور والانصراف", subtitle: "الأسبوع: " + periodLabel, companyName: props.companyName }),
-      h(InfoBar, { key: "i", items: [{ label: "الفترة", value: periodLabel }, { label: "عدد الموظفين", value: props.employees.length }, { label: "أيام العمل", value: 7 }, { label: "نسبة الالتزام", value: data.attendanceRate + "%" }] }),
-      h(Legend, { key: "lg" }),
-      h(SummaryCards, Object.assign({ key: "s" }, data)),
-      h("div", { key: "tw", style: { overflowX: "auto" } }, WeeklyTable(data, days)),
-      h(Notes, { key: "n", list: ["الرمز (—) يعني عدم تسجيل حالة حضور لهذا اليوم.", "يشمل الأسبوع الأيام من السبت إلى الجمعة."] }),
-      h(ReportFooter, { key: "f" })
-    ]);
-  }
-
-  function MonthlyReportBody(props) {
-    var days = getMonthDays(props.year, props.month);
-    var data = buildRangeData(props.employees, props.records, days);
-    var periodLabel = MONTH_NAMES[props.month] + " " + props.year;
-    return h("div", null, [
-      h(ReportHeader, { key: "h", title: "التقرير الشهري للحضور والانصراف", subtitle: "الشهر: " + periodLabel, companyName: props.companyName }),
-      h(InfoBar, { key: "i", items: [{ label: "الشهر", value: periodLabel }, { label: "عدد الموظفين", value: props.employees.length }, { label: "عدد الأيام", value: days.length }, { label: "نسبة الالتزام", value: data.attendanceRate + "%" }] }),
-      h(Legend, { key: "lg" }),
-      h(SummaryCards, Object.assign({ key: "s" }, data)),
-      h("div", { key: "tw", style: { overflowX: "auto" } }, MonthlyTable(data, days)),
-      h(Notes, { key: "n", list: ["الرمز (—) يعني عدم تسجيل حالة حضور لهذا اليوم.", "ح = حاضر، غ = غائب، ت = متأخر."] }),
-      h(ReportFooter, { key: "f" })
-    ]);
-  }
-
-  function PreviewModal(props) {
-    return h("div", { className: "no-print", style: { position: "fixed", inset: 0, background: "rgba(4,7,14,.72)", zIndex: 999, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px", overflowY: "auto" } }, h("div", { style: { width: "100%", maxWidth: "1000px" } }, [
-      h("div", { key: "bar", style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, [
-        h("div", { key: "t", style: { color: "#fff", fontWeight: "700" } }, "معاينة قبل الطباعة"),
-        h("div", { key: "b", style: { display: "flex", gap: "8px" } }, [
-          h(Btn, { key: "p", onClick: props.onPrint, activeColor: COLORS.accent, active: true }, "🖨️ طباعة / حفظ PDF"),
-          h(Btn, { key: "c", onClick: props.onClose }, "إغلاق")
-        ])
-      ]),
-      h("div", { key: "sheet", style: { background: "#fff", borderRadius: "10px", padding: "22px", boxShadow: "0 20px 60px rgba(0,0,0,.5)" } }, props.children)
-    ]));
-  }
-
-  function AttendanceView(props) {
+  function Attendance(props) {
     var employees = props.employees, records = props.records, setRecords = props.setRecords, settings = props.settings;
-    var dateState = useState(toISO(new Date()));
-    var date = dateState[0], setDate = dateState[1];
-    var filterState = useState("all");
-    var filter = filterState[0], setFilter = filterState[1];
-
-    function setStatus(empId, status) {
-      var next = JSON.parse(JSON.stringify(records));
-      if (!next[empId]) next[empId] = {};
-      if (next[empId][date] === status) delete next[empId][date];
-      else next[empId][date] = status;
-      setRecords(next);
-    }
-
-    var visible = employees.filter(function (emp) {
-      var current = (records[emp.id] || {})[date] || null;
-      return filter === "all" || current === filter;
-    });
-
-    if (employees.length === 0) {
-      return h(Card, null, h("p", { style: { color: COLORS.textDim } }, "أضف موظفين أولًا من تبويب \"الموظفون\" حتى تتمكن من تسجيل الحضور."));
-    }
-
+    var ds = useState(today()), selectedDate = ds[0], setSelectedDate = ds[1];
+    var fs = useState("all"), filter = fs[0], setFilter = fs[1];
+    var visible = employees.filter(function (e) { return filter === "all" || e.id === filter; });
+    function mark(id, status) { var next = JSON.parse(JSON.stringify(records)); next[id] = next[id] || {}; if (next[id][selectedDate] === status) delete next[id][selectedDate]; else next[id][selectedDate] = status; setRecords(next); }
     return h("div", null, [
-      h("div", { key: "top", style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", flexWrap: "wrap" } }, [
-        h("label", { key: "l", style: { color: COLORS.textDim, fontSize: "13px" } }, "التاريخ:"),
-        h("input", { key: "d", type: "date", value: date, onChange: function (e) { setDate(e.target.value); }, style: { background: COLORS.panel2, border: "1px solid " + COLORS.border, color: COLORS.text, borderRadius: "8px", padding: "8px 10px", fontSize: "13px" } }),
-        h("span", { key: "day", style: { color: COLORS.textDim, fontSize: "13px" } }, WEEKDAY_NAMES[parseISO(date).getDay()]),
-        h("div", { key: "filter", style: { display: "flex", gap: "6px", flexWrap: "wrap", marginRight: "auto" } }, [
-          h(Btn, { key: "all", small: true, active: filter === "all", activeColor: settings.primaryColor || COLORS.accent, onClick: function () { setFilter("all"); } }, "الكل"),
-          STATUS_ORDER.map(function (k) {
-            return h(Btn, { key: k, small: true, active: filter === k, activeColor: STATUS[k].color, onClick: function () { setFilter(k); } }, STATUS[k].label);
-          })
-        ])
-      ]),
-      h("div", { key: "list", style: { display: "flex", flexDirection: "column", gap: "10px" } }, visible.map(function (emp) {
-        var current = (records[emp.id] || {})[date] || null;
-        return h(Card, { key: emp.id, style: { padding: "12px 14px" } }, h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" } }, [
-          h("div", { key: "n" }, [
-            h("div", { key: "nm", style: { fontWeight: "700" } }, emp.name),
-            emp.jobTitle ? h("div", { key: "jt", style: { fontSize: "12px", color: COLORS.textDim } }, emp.jobTitle) : null
-          ]),
-          h("div", { key: "btns", style: { display: "flex", gap: "6px", flexWrap: "wrap" } }, STATUS_ORDER.map(function (k) {
-            var meta = STATUS[k];
-            return h(Btn, { key: k, small: true, active: current === k, activeColor: meta.color, onClick: function () { setStatus(emp.id, k); } }, meta.label);
-          }))
-        ]));
-      }))
-    ]);
-  }
-
-  function EmployeesView(props) {
-    var employees = props.employees, setEmployees = props.setEmployees;
-    var nameState = useState("");
-    var name = nameState[0], setName = nameState[1];
-    var jobState = useState("");
-    var job = jobState[0], setJob = jobState[1];
-
-    function addEmployee() {
-      if (!name.trim()) return;
-      var emp = { id: "e" + Date.now() + Math.floor(Math.random() * 1000), name: name.trim(), jobTitle: job.trim() };
-      setEmployees(employees.concat([emp]));
-      setName("");
-      setJob("");
-    }
-    function removeEmployee(id) {
-      setEmployees(employees.filter(function (e) { return e.id !== id; }));
-    }
-
-    var inputStyle = { background: COLORS.panel2, border: "1px solid " + COLORS.border, color: COLORS.text, borderRadius: "8px", padding: "9px 12px", fontSize: "13.5px", flex: "1", minWidth: "160px" };
-
-    return h("div", null, [
-      h(Card, { key: "add", style: { marginBottom: "16px" } }, h("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap" } }, [
-        h("input", { key: "n", placeholder: "اسم الموظف", value: name, onChange: function (e) { setName(e.target.value); }, style: inputStyle }),
-        h("input", { key: "j", placeholder: "المسمى الوظيفي (اختياري)", value: job, onChange: function (e) { setJob(e.target.value); }, style: inputStyle }),
-        h(Btn, { key: "b", onClick: addEmployee, active: true, activeColor: COLORS.accent }, "+ إضافة موظف")
+      h(Card, { key: "controls", style: { marginBottom: 14 } }, h("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } }, [
+        h("label", { style: { color: C.dim } }, "التاريخ"), h("input", { type: "date", value: selectedDate, onChange: function (e) { setSelectedDate(e.target.value); }, style: inputStyle() }), h("b", { style: { color: C.dim } }, WEEKDAYS[date(selectedDate).getDay()]),
+        h("select", { value: filter, onChange: function (e) { setFilter(e.target.value); }, style: Object.assign({}, inputStyle(), { marginRight: "auto" }) }, [h("option", { value: "all" }, "كل الموظفين")].concat(employees.map(function (e) { return h("option", { key: e.id, value: e.id }, e.name); })))
       ])),
-      employees.length === 0 ? h("p", { key: "empty", style: { color: COLORS.textDim } }, "لا يوجد موظفون بعد.") : h("div", { key: "list", style: { display: "flex", flexDirection: "column", gap: "8px" } }, employees.map(function (emp) {
-        return h(Card, { key: emp.id, style: { padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", flexDirection: "row" } }, [
-          h("div", { key: "n" }, [
-            h("div", { key: "nm", style: { fontWeight: "700" } }, emp.name),
-            emp.jobTitle ? h("div", { key: "jt", style: { fontSize: "12px", color: COLORS.textDim } }, emp.jobTitle) : null
-          ]),
-          h(Btn, { key: "del", small: true, color: "#F87171", onClick: function () { removeEmployee(emp.id); } }, "حذف")
-        ]);
-      }))
+      visible.map(function (e) { var current = (records[e.id] || {})[selectedDate]; return h(Card, { key: e.id, style: { padding: "13px 15px", marginBottom: 10 } }, h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" } }, [h("div", null, [h("strong", null, e.name), e.jobTitle ? h("small", { style: { display: "block", color: C.dim } }, e.jobTitle) : null]), h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, ORDER.map(function (k) { return h(Btn, { key: k, small: true, active: current === k, activeColor: STATUS[k].color, onClick: function () { mark(e.id, k); } }, STATUS[k].label); }))])); }),
+      !visible.length ? h(Card, null, "لا يوجد موظفون مطابقون للفلتر.") : null
     ]);
   }
 
-  function ReportsView(props) {
-    var employees = props.employees, records = props.records, companyName = props.companyName;
-    var tabState = useState("weekly");
-    var tab = tabState[0], setTab = tabState[1];
-    var weekAnchorState = useState(toISO(new Date()));
-    var weekAnchor = weekAnchorState[0], setWeekAnchor = weekAnchorState[1];
-    var now = new Date();
-    var monthState = useState(now.getMonth());
-    var month = monthState[0], setMonth = monthState[1];
-    var yearState = useState(now.getFullYear());
-    var year = yearState[0], setYear = yearState[1];
-    var previewState = useState(false);
-    var preview = previewState[0], setPreview = previewState[1];
-
-    var inputStyle = { background: COLORS.panel2, border: "1px solid " + COLORS.border, color: COLORS.text, borderRadius: "8px", padding: "8px 10px", fontSize: "13px" };
-
-    function doPrint() {
-      document.body.setAttribute("data-print-mode", tab);
-      window.print();
-    }
-
-    return h("div", null, [
-      h("div", { key: "tabs", style: { display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" } }, [
-        h(Btn, { key: "w", active: tab === "weekly", activeColor: COLORS.accent, onClick: function () { setTab("weekly"); } }, "تقرير أسبوعي"),
-        h(Btn, { key: "m", active: tab === "monthly", activeColor: COLORS.accent, onClick: function () { setTab("monthly"); } }, "تقرير شهري")
-      ]),
-      h(Card, { key: "controls" }, tab === "weekly" ? h("div", { style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" } }, [
-        h("label", { key: "l", style: { color: COLORS.textDim, fontSize: "13px" } }, "اختر أي يوم ضمن الأسبوع:"),
-        h("input", { key: "d", type: "date", value: weekAnchor, onChange: function (e) { setWeekAnchor(e.target.value); }, style: inputStyle }),
-        h("span", { key: "r", style: { color: COLORS.textDim, fontSize: "13px" } }, "الأسبوع: " + fmtDMY(getWeekDays(weekAnchor)[0]) + " إلى " + fmtDMY(getWeekDays(weekAnchor)[6])),
-        h(Btn, { key: "pv", active: true, activeColor: COLORS.accent, onClick: function () { setPreview(true); } }, "👁️ معاينة وطباعة PDF")
-      ]) : h("div", { style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" } }, [
-        h("label", { key: "l", style: { color: COLORS.textDim, fontSize: "13px" } }, "الشهر:"),
-        h("select", { key: "ms", value: month, onChange: function (e) { setMonth(Number(e.target.value)); }, style: inputStyle }, MONTH_NAMES.map(function (mn, i) { return h("option", { key: i, value: i }, mn); })),
-        h("label", { key: "yl", style: { color: COLORS.textDim, fontSize: "13px" } }, "السنة:"),
-        h("input", { key: "y", type: "number", value: year, onChange: function (e) { setYear(Number(e.target.value)); }, style: Object.assign({}, inputStyle, { width: "100px" }) }),
-        h(Btn, { key: "pv", active: true, activeColor: COLORS.accent, onClick: function () { setPreview(true); } }, "👁️ معاينة وطباعة PDF")
-      ])),
-      employees.length === 0 ? h("p", { key: "warn", style: { color: COLORS.textDim, marginTop: "12px" } }, "لا يوجد موظفون بعد، أضف موظفين لعرض بيانات التقرير.") : null,
-      preview ? h(PreviewModal, { key: "modal", onClose: function () { setPreview(false); }, onPrint: doPrint }, tab === "weekly" ? h(WeeklyReportBody, { employees: employees, records: records, anchorISO: weekAnchor, companyName: companyName }) : h(MonthlyReportBody, { employees: employees, records: records, month: month, year: year, companyName: companyName })) : null,
-      h("div", { key: "pw", className: "printable-report-weekly" }, h(WeeklyReportBody, { employees: employees, records: records, anchorISO: weekAnchor, companyName: companyName })),
-      h("div", { key: "pm", className: "printable-report-monthly" }, h(MonthlyReportBody, { employees: employees, records: records, month: month, year: year, companyName: companyName }))
-    ]);
+  function Employees(props) {
+    var ns = useState(""), name = ns[0], setName = ns[1], js = useState(""), job = js[0], setJob = js[1];
+    function add() { if (!name.trim()) return; props.setEmployees(props.employees.concat({ id: "e" + Date.now(), name: name.trim(), jobTitle: job.trim() })); setName(""); setJob(""); }
+    return h("div", null, [h(Card, { style: { marginBottom: 15 } }, h("div", { style: { display: "flex", gap: 9, flexWrap: "wrap" } }, [h("input", { placeholder: "اسم الموظف", value: name, onChange: function (e) { setName(e.target.value); }, style: Object.assign({}, inputStyle(), { flex: 1, minWidth: 180 }) }), h("input", { placeholder: "المسمى الوظيفي", value: job, onChange: function (e) { setJob(e.target.value); }, style: Object.assign({}, inputStyle(), { flex: 1, minWidth: 180 }) }), h(Btn, { active: true, onClick: add }, "+ إضافة موظف")])), props.employees.map(function (e) { return h(Card, { key: e.id, style: { padding: "12px 15px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" } }, [h("span", null, [h("b", null, e.name), e.jobTitle ? " — " + e.jobTitle : ""]), h(Btn, { small: true, color: "#F87171", onClick: function () { props.setEmployees(props.employees.filter(function (x) { return x.id !== e.id; })); } }, "حذف")]); })]);
   }
 
-  function SettingsView(props) {
-    var settings = props.settings, setSettings = props.setSettings;
-    var companyName = settings.companyName || "اسم الشركة";
-    var inputStyle = { background: COLORS.panel2, border: "1px solid " + COLORS.border, color: COLORS.text, borderRadius: "10px", padding: "10px 12px", fontSize: "14px", width: "100%" };
-    var colors = ["#4C7CF3", "#22C55E", "#F59E0B", "#A855F7", "#EF4444", "#14B8A6"];
-    return h("div", null, [
-      h(Card, { key: "card", style: { maxWidth: "700px" } }, [
-        h("h3", { key: "h", style: { marginTop: 0, marginBottom: "18px" } }, "إعدادات النظام"),
-        h("div", { key: "grid", style: { display: "grid", gap: "18px" } }, [
-          h("div", { key: "company" }, [
-            h("label", { style: { display: "block", marginBottom: "8px", color: COLORS.textDim } }, "اسم الشركة"),
-            h("input", { value: companyName, onChange: function (e) { setSettings(Object.assign({}, settings, { companyName: e.target.value })); }, style: inputStyle })
-          ]),
-          h("div", { key: "logo" }, [
-            h("label", { style: { display: "block", marginBottom: "8px", color: COLORS.textDim } }, "رابط الشعار (اختياري)"),
-            h("input", { value: settings.logo || "", onChange: function (e) { setSettings(Object.assign({}, settings, { logo: e.target.value })); }, placeholder: "https://example.com/logo.png", style: inputStyle })
-          ]),
-          h("div", { key: "color" }, [
-            h("label", { style: { display: "block", marginBottom: "8px", color: COLORS.textDim } }, "لون التمييز"),
-            h("div", { style: { display: "flex", gap: "10px", flexWrap: "wrap" } }, colors.map(function (c) {
-              return h("button", { key: c, type: "button", onClick: function () { setSettings(Object.assign({}, settings, { primaryColor: c })); }, style: { width: "36px", height: "36px", borderRadius: "50%", border: settings.primaryColor === c ? "3px solid #fff" : "2px solid " + COLORS.border, background: c, boxShadow: "0 6px 18px " + c + "55" } });
-            }))
-          ])
-        ]),
-        h("div", { key: "actions", style: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "18px" } }, [
-          h(Btn, { key: "reset", color: "#FCA5A5", onClick: function () { setSettings({ companyName: "اسم الشركة", logo: "", primaryColor: "#4C7CF3" }); }, style: { borderColor: "#FCA5A5" } }, "إعادة تعيين"),
-          settings.logo ? h("img", { key: "logoPreview", src: settings.logo, alt: "logo", style: { maxWidth: "120px", maxHeight: "52px", objectFit: "contain", borderRadius: "8px", border: "1px solid " + COLORS.border, background: "#fff" } }) : null
-        ])
-      ])
-    ]);
-  }
-
-  function exportExcel(employees, records) {
-    if (!window.XLSX) {
-      window.alert("مكتبة Excel غير متاحة في هذا المتصفح.");
-      return;
-    }
-
+  function AdvancedReports(props) {
+    var employees = props.employees, records = props.records, settings = props.settings;
+    var fs = useState(firstDayOfMonth()), from = fs[0], setFrom = fs[1], ts = useState(today()), to = ts[0], setTo = ts[1];
+    var es = useState("all"), employeeId = es[0], setEmployeeId = es[1], ss = useState("all"), statusFilter = ss[0], setStatusFilter = ss[1];
+    var days = from && to && from <= to ? daysBetween(from, to) : [];
+    var selected = employees.filter(function (e) { return employeeId === "all" || e.id === employeeId; });
+    var stats = { present: 0, absent: 0, late: 0, leave: 0, sick: 0, unmarked: 0 };
     var rows = [];
-    employees.forEach(function (emp) {
-      var map = records[emp.id] || {};
-      var dates = Object.keys(map).sort();
-      if (!dates.length) {
-        rows.push({ "الموظف": emp.name, "المسمى الوظيفي": emp.jobTitle || "", "التاريخ": "", "الحالة": "بدون تسجيل" });
-        return;
-      }
-      dates.forEach(function (date) {
-        rows.push({ "الموظف": emp.name, "المسمى الوظيفي": emp.jobTitle || "", "التاريخ": date, "الحالة": STATUS[map[date]].label || map[date] });
-      });
-    });
-
-    var wb = XLSX.utils.book_new();
-    var ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 14 }];
-    XLSX.utils.book_append_sheet(wb, ws, "سجل الحضور");
-    XLSX.writeFile(wb, "سجل_الحضور_" + toISO(new Date()) + ".xlsx");
+    selected.forEach(function (e) { days.forEach(function (d) { var day = iso(d), s = (records[e.id] || {})[day] || "unmarked"; stats[s] = (stats[s] || 0) + 1; if (statusFilter === "all" || s === statusFilter) rows.push({ employee: e, date: day, status: s }); }); });
+    var marked = stats.present + stats.absent + stats.late + stats.leave + stats.sick;
+    var rate = marked ? Math.round((stats.present + stats.late) * 100 / marked) : 0;
+    return h("div", null, [
+      h(Card, { key: "filters", style: { marginBottom: 15 } }, [
+        h("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } }, [h("strong", null, "تقرير متقدم"), h("span", { style: { color: C.dim } }, "من"), h("input", { type: "date", value: from, onChange: function (e) { setFrom(e.target.value); }, style: inputStyle() }), h("span", { style: { color: C.dim } }, "إلى"), h("input", { type: "date", value: to, onChange: function (e) { setTo(e.target.value); }, style: inputStyle() }), h("select", { value: employeeId, onChange: function (e) { setEmployeeId(e.target.value); }, style: inputStyle() }, [h("option", { value: "all" }, "كل الموظفين")].concat(employees.map(function (e) { return h("option", { key: e.id, value: e.id }, e.name); }))), h(Btn, { active: true, activeColor: "#22C55E", onClick: function () { ExcelExport(employees, records, from, to, employeeId); } }, "⬇️ تصدير النتائج")]),
+        h("div", { style: { display: "flex", gap: 7, flexWrap: "wrap", marginTop: 14 } }, [h(Btn, { small: true, active: statusFilter === "all", onClick: function () { setStatusFilter("all"); } }, "كل الحالات")].concat(ORDER.map(function (k) { return h(Btn, { key: k, small: true, active: statusFilter === k, activeColor: STATUS[k].color, onClick: function () { setStatusFilter(k); } }, STATUS[k].label); })))
+      ]),
+      h("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 15 } }, [h(Stat, { label: "نسبة الالتزام", value: rate + "%", color: C.accent }), h(Stat, { label: "إجمالي المسجل", value: marked, color: "#22C55E" }), h(Stat, { label: "الحضور", value: stats.present, color: "#22C55E" }), h(Stat, { label: "الغياب", value: stats.absent, color: "#EF4444" }), h(Stat, { label: "التأخير", value: stats.late, color: "#F59E0B" })]),
+      h(Card, { style: { marginBottom: 15 } }, [h("h3", { style: { marginTop: 0 } }, "ملخص الحالات"), h("div", { style: { display: "flex", height: 18, borderRadius: 10, overflow: "hidden", background: C.panel2, marginBottom: 13 } }, ORDER.map(function (k) { return stats[k] ? h("div", { key: k, title: STATUS[k].label + ": " + stats[k], style: { width: (stats[k] * 100 / Math.max(1, marked)) + "%", background: STATUS[k].color } }) : null; })), h("div", { style: { display: "flex", gap: 15, flexWrap: "wrap", color: C.dim, fontSize: 13 } }, ORDER.map(function (k) { return h("span", { key: k }, [h("i", { style: { display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: STATUS[k].color, marginLeft: 5 } }), STATUS[k].label + ": " + stats[k]]); }))]),
+      h(Card, { style: { overflowX: "auto" } }, [h("h3", { style: { marginTop: 0 } }, "تفاصيل الفترة (" + rows.length + " سجل)"), h("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 600 } }, [h("thead", null, h("tr", null, ["الموظف", "المسمى", "التاريخ", "اليوم", "الحالة"].map(function (x) { return h("th", { key: x, style: { textAlign: "right", padding: 10, borderBottom: "1px solid " + C.border, color: C.dim } }, x); }))), h("tbody", null, rows.map(function (r, i) { return h("tr", { key: i }, [h("td", { style: { padding: 9, borderBottom: "1px solid " + C.border } }, r.employee.name), h("td", { style: { padding: 9, borderBottom: "1px solid " + C.border, color: C.dim } }, r.employee.jobTitle || "—"), h("td", { style: { padding: 9, borderBottom: "1px solid " + C.border } }, displayDate(r.date)), h("td", { style: { padding: 9, borderBottom: "1px solid " + C.border } }, WEEKDAYS[date(r.date).getDay()]), h("td", { style: { padding: 9, borderBottom: "1px solid " + C.border, color: r.status === "unmarked" ? C.dim : STATUS[r.status].color, fontWeight: 700 } }, r.status === "unmarked" ? "بدون تسجيل" : STATUS[r.status].label)]); }))])])
+    ]);
   }
+
+  function Settings(props) { var s = props.settings, set = props.setSettings; return h(Card, { style: { maxWidth: 700 } }, [h("h3", { style: { marginTop: 0 } }, "إعدادات النظام"), h("label", { style: { display: "block", color: C.dim, margin: "12px 0 6px" } }, "اسم الشركة"), h("input", { value: s.companyName || "", onChange: function (e) { set(Object.assign({}, s, { companyName: e.target.value })); }, style: Object.assign({}, inputStyle(), { width: "100%" }) }), h("label", { style: { display: "block", color: C.dim, margin: "12px 0 6px" } }, "رابط الشعار"), h("input", { value: s.logo || "", onChange: function (e) { set(Object.assign({}, s, { logo: e.target.value })); }, style: Object.assign({}, inputStyle(), { width: "100%" }) })]); }
 
   function App() {
-    var pageState = useState("attendance");
-    var page = pageState[0], setPage = pageState[1];
-
-    var employeesState = useState(function () {
-      var saved = loadJSON(LS_EMPLOYEES, null);
-      if (saved && saved.length) return saved;
-      return [
-        { id: "e1", name: "أحمد محمد", jobTitle: "محاسب" },
-        { id: "e2", name: "سارة علي", jobTitle: "موارد بشرية" },
-        { id: "e3", name: "خالد ناصر", jobTitle: "مبرمج" }
-      ];
-    });
-    var employees = employeesState[0], setEmployees = employeesState[1];
-
-    var recordsState = useState(function () { return loadJSON(LS_RECORDS, {}); });
-    var records = recordsState[0], setRecords = recordsState[1];
-
-    var settingsState = useState(function () { return loadJSON(LS_SETTINGS, { companyName: "اسم الشركة", logo: "", primaryColor: "#4C7CF3" }); });
-    var settings = settingsState[0], setSettings = settingsState[1];
-
-    useEffect(function () { saveJSON(LS_EMPLOYEES, employees); }, [employees]);
-    useEffect(function () { saveJSON(LS_RECORDS, records); }, [records]);
-    useEffect(function () { saveJSON(LS_SETTINGS, settings); }, [settings]);
-    useEffect(function () {
-      function onAfterPrint() { document.body.removeAttribute("data-print-mode"); }
-      window.addEventListener("afterprint", onAfterPrint);
-      return function () { window.removeEventListener("afterprint", onAfterPrint); };
-    }, []);
-
-    var tabs = [
-      { id: "attendance", label: "حضور اليوم" },
-      { id: "employees", label: "الموظفون" },
-      { id: "reports", label: "التقارير" },
-      { id: "settings", label: "الإعدادات" }
-    ];
-
-    function doPrintWeekly() {
-      document.body.setAttribute("data-print-mode", "weekly");
-      window.print();
-    }
-
-    function doExportExcel() { exportExcel(employees, records); }
-
-    return h(React.Fragment, null, [
-      h("div", { key: "shell", className: "app-shell", style: { minHeight: "100vh", background: COLORS.bg, color: COLORS.text, fontFamily: "'Cairo', sans-serif", padding: "20px" } }, h("div", { style: { maxWidth: "1100px", margin: "0 auto" } }, [
-        h("div", { key: "header", style: { marginBottom: "20px" } }, [
-          h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" } }, [
-            h("div", { key: "title", style: { display: "flex", alignItems: "center", gap: "12px" } }, [
-              settings.logo ? h("img", { key: "logo", src: settings.logo, alt: "logo", style: { maxHeight: "42px", maxWidth: "120px", objectFit: "contain", borderRadius: "8px", background: "#fff", padding: "4px 6px" } }) : null,
-              h("h1", { key: "t", style: { margin: 0, fontSize: "24px", fontWeight: "800" } }, "📋 سجل الحضور")
-            ]),
-            h("div", { key: "tools", style: { display: "flex", gap: "8px", flexWrap: "wrap" } }, [
-              h(Btn, { key: "excel", active: true, activeColor: "#22C55E", onClick: doExportExcel }, "⬇️ Excel"),
-              h(Btn, { key: "pdf", active: true, activeColor: settings.primaryColor || COLORS.accent, onClick: doPrintWeekly }, "🖨️ PDF")
-            ])
-          ]),
-          h("input", { key: "c", value: settings.companyName, onChange: function (e) { setSettings(Object.assign({}, settings, { companyName: e.target.value })); }, style: { background: "transparent", border: "none", borderBottom: "1px dashed " + COLORS.border, color: COLORS.textDim, fontSize: "13px", padding: "4px 0", width: "260px", marginTop: "8px" } })
-        ]),
-        h("div", { key: "nav", style: { display: "flex", gap: "8px", marginBottom: "18px", borderBottom: "1px solid " + COLORS.border, paddingBottom: "12px", flexWrap: "wrap" } }, tabs.map(function (t) { return h(Btn, { key: t.id, active: page === t.id, activeColor: settings.primaryColor || COLORS.accent, onClick: function () { setPage(t.id); } }, t.label); })),
-        page === "attendance" ? h(AttendanceView, { employees: employees, records: records, setRecords: setRecords, settings: settings }) : page === "employees" ? h(EmployeesView, { employees: employees, setEmployees: setEmployees }) : page === "reports" ? h(ReportsView, { employees: employees, records: records, companyName: settings.companyName }) : h(SettingsView, { settings: settings, setSettings: setSettings })
-      ]))
-    ].concat(page === "reports" ? [] : [h("div", { key: "pw-hidden", className: "printable-report-weekly" }, h(WeeklyReportBody, { employees: employees, records: records, anchorISO: toISO(new Date()), companyName: settings.companyName })), h("div", { key: "pm-hidden", className: "printable-report-monthly" }, h(MonthlyReportBody, { employees: employees, records: records, month: new Date().getMonth(), year: new Date().getFullYear(), companyName: settings.companyName }))]));
+    var ps = useState("attendance"), page = ps[0], setPage = ps[1];
+    var es = useState(function () { return load(KEYS.employees, [{ id: "e1", name: "أحمد محمد", jobTitle: "محاسب" }, { id: "e2", name: "سارة علي", jobTitle: "موارد بشرية" }, { id: "e3", name: "خالد ناصر", jobTitle: "مبرمج" }]); }), employees = es[0], setEmployees = es[1];
+    var rs = useState(function () { return load(KEYS.records, {}); }), records = rs[0], setRecords = rs[1];
+    var ss = useState(function () { return load(KEYS.settings, { companyName: "اسم الشركة", logo: "", primaryColor: C.accent }); }), settings = ss[0], setSettings = ss[1];
+    useEffect(function () { save(KEYS.employees, employees); }, [employees]); useEffect(function () { save(KEYS.records, records); }, [records]); useEffect(function () { save(KEYS.settings, settings); }, [settings]);
+    var tabs = [{ id: "attendance", label: "حضور اليوم" }, { id: "employees", label: "الموظفون" }, { id: "reports", label: "التقارير المتقدمة" }, { id: "settings", label: "الإعدادات" }];
+    return h("div", { className: "app-shell", style: { minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Cairo', sans-serif", padding: 20, direction: "rtl" } }, h("div", { style: { maxWidth: 1100, margin: "auto" } }, [
+      h("header", { style: { marginBottom: 20 } }, [h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 15, flexWrap: "wrap" } }, [h("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, [settings.logo ? h("img", { src: settings.logo, alt: "logo", style: { maxHeight: 42, maxWidth: 110, background: "#fff", borderRadius: 8, padding: 4 } }) : null, h("h1", { style: { margin: 0, fontSize: 28 } }, "📋 سجل الحضور")]), h("span", { style: { color: C.dim } }, settings.companyName)]), h("p", { style: { color: C.dim, margin: "7px 0 0" } }, "إدارة الحضور والتقارير بواجهة واحدة")]),
+      h("nav", { style: { display: "flex", gap: 8, flexWrap: "wrap", borderBottom: "1px solid " + C.border, paddingBottom: 12, marginBottom: 18 } }, tabs.map(function (t) { return h(Btn, { key: t.id, active: page === t.id, activeColor: settings.primaryColor || C.accent, onClick: function () { setPage(t.id); } }, t.label); })),
+      page === "attendance" ? h(Attendance, { employees: employees, records: records, setRecords: setRecords, settings: settings }) : page === "employees" ? h(Employees, { employees: employees, setEmployees: setEmployees }) : page === "reports" ? h(AdvancedReports, { employees: employees, records: records, settings: settings }) : h(Settings, { settings: settings, setSettings: setSettings })
+    ]));
   }
-
-  try {
-    var root = ReactDOM.createRoot(document.getElementById("root"));
-    root.render(h(App));
-    window.__mounted = true;
-  } catch (err) {
-    window.__lastError = err && err.message ? err.message : String(err);
-    if (window.showFallback) window.showFallback();
-  }
+  try { ReactDOM.createRoot(document.getElementById("root")).render(h(App)); window.__mounted = true; } catch (err) { window.__lastError = err && err.message ? err.message : String(err); if (window.showFallback) window.showFallback(); }
 })();
-

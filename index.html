@@ -3,133 +3,62 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>سجل الحضور</title>
+<title>سجل الحضور | نظام إدارة الحضور</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  html, body { margin: 0; padding: 0; background: #0F1420; }
-  * { box-sizing: border-box; }
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-thumb { background: #2A3346; border-radius: 4px; }
-  button { font-family: inherit; cursor: pointer; }
-  input { font-family: inherit; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes spin { to { transform: rotate(360deg); } }
+:root{--bg:#0b1020;--panel:#151d31;--panel2:#1b2740;--border:#2b3957;--text:#edf3ff;--muted:#9aa8c4;--accent:#5b83ff}
+html,body{margin:0;min-height:100%;background:radial-gradient(circle at 80% 0%,#1c2b52 0,#0b1020 42%);font-family:'Cairo',sans-serif}
+*{box-sizing:border-box}button,input,select{font-family:inherit}button{cursor:pointer}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:#354565;border-radius:10px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.app-shell{background:transparent!important}.app-shell>div{max-width:1100px!important}
+.app-shell h1{font-size:30px!important;letter-spacing:-.5px;text-shadow:0 8px 30px #0008}
+.app-shell input,.app-shell select{outline:none;transition:.2s;border-color:var(--border)!important}
+.app-shell input:focus,.app-shell select:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px #5b83ff22}
+.app-shell button{box-shadow:0 5px 15px #0002;transition:transform .18s,box-shadow .18s!important}
+.app-shell button:hover{transform:translateY(-2px);box-shadow:0 8px 20px #0004}
+.app-shell [style*="background: rgb(23, 30, 46)"],.app-shell [style*="background: #171E2E"]{box-shadow:0 15px 35px #0003}
+.export-wrap{display:flex;justify-content:flex-end;margin:0 0 14px;gap:10px;flex-wrap:wrap}.export-btn{border:0;border-radius:12px;padding:11px 18px;background:linear-gradient(135deg,#22c55e,#159447);color:#fff;font-weight:800;box-shadow:0 8px 22px #15944755}.export-btn:hover{filter:brightness(1.08);transform:translateY(-2px)}
+.export-toast{position:fixed;left:24px;bottom:24px;background:#15233c;color:#fff;border:1px solid #3d5680;border-radius:12px;padding:12px 18px;z-index:2000;box-shadow:0 12px 30px #0006;animation:fadeIn .2s ease}
+@media(max-width:600px){.app-shell{padding:14px!important}.app-shell h1{font-size:24px!important}.export-wrap{justify-content:stretch}.export-btn{width:100%}}
+@media print{.export-wrap,.export-toast{display:none!important}.app-shell{background:#fff!important;color:#111!important}}
 
-  /* أنماط التقرير القابل للطباعة - مفعّلة دائمًا حتى تظهر بنفس الشكل في المعاينة على الشاشة وعند الطباعة الفعلية */
-  .printable-report-monthly, .printable-report-weekly {
-    display: none;
-    font-family: 'Cairo', sans-serif; color: #1a1a1a; background: #fff;
-  }
-  .pr-header {
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 2px solid #1a1a1a; padding-bottom: 8px; margin-bottom: 10px;
-  }
-  .pr-title { font-size: 18px; font-weight: 800; margin: 0; }
-  .pr-sub { font-size: 11px; color: #666; margin: 2px 0 0; }
-  .pr-meta { font-size: 10px; color: #666; text-align: left; line-height: 1.6; }
-  .pr-infobar {
-    display: flex; gap: 8px; margin-bottom: 12px;
-  }
-  .pr-info-card {
-    flex: 1; border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 11px; text-align: center;
-  }
-  .pr-info-card b { display: block; font-size: 13px; margin-top: 2px; }
-  .pr-legend {
-    display: flex; gap: 14px; font-size: 10px; color: #444; margin-bottom: 10px; flex-wrap: wrap;
-  }
-  .pr-legend span { display: inline-flex; align-items: center; gap: 4px; }
-  .pr-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .pr-summary {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
-  }
-  .pr-summary-card {
-    border: 1px solid #ddd; border-radius: 6px; padding: 6px 8px; text-align: center;
-  }
-  .pr-summary-num { font-size: 16px; font-weight: 800; }
-  .pr-summary-label { font-size: 9.5px; color: #666; }
-  .printable-report-monthly table, .printable-report-weekly table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-  .printable-report-monthly thead, .printable-report-weekly thead { display: table-header-group; }
-  .printable-report-monthly tr, .printable-report-weekly tr { page-break-inside: avoid; }
-  .printable-report-monthly th, .printable-report-monthly td,
-  .printable-report-weekly th, .printable-report-weekly td {
-    border: 1px solid #d5d5d5; padding: 4px 3px; text-align: center;
-  }
-  .printable-report-monthly th, .printable-report-weekly th {
-    background: #1a1a1a !important; color: #fff !important; font-weight: 700;
-  }
-  .printable-report-monthly td:first-child, .printable-report-monthly th:first-child,
-  .printable-report-weekly td:first-child, .printable-report-weekly th:first-child {
-    text-align: right; font-weight: 600;
-  }
-  .printable-report-monthly tbody tr:nth-child(even),
-  .printable-report-weekly tbody tr:nth-child(even) { background: #f7f7f7 !important; }
-  .printable-report-monthly tfoot td, .printable-report-weekly tfoot td {
-    font-weight: 800; background: #eee !important; border-top: 2px solid #1a1a1a;
-  }
-  .pr-status-badge {
-    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-weight: 700;
-  }
-  .pr-notes { margin-top: 14px; font-size: 10px; }
-  .pr-notes-title { font-weight: 800; margin-bottom: 4px; }
-  .pr-notes ul { margin: 0; padding-right: 16px; }
-  .pr-notes li { margin-bottom: 2px; }
-  .pr-footer {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-top: 20px; font-size: 10px; color: #444;
-  }
-  .pr-sign-line { display: inline-block; min-width: 140px; border-bottom: 1px solid #444; margin-right: 6px; }
-
-  @media print {
-    @page { size: landscape; margin: 10mm; }
-    html, body { background: #fff !important; }
-    .app-shell { display: none !important; }
-    .no-print { display: none !important; }
-    body[data-print-mode="monthly"] .printable-report-monthly,
-    body[data-print-mode="weekly"] .printable-report-weekly {
-      display: block !important;
-      position: static;
-      width: 100%;
-      -webkit-print-color-adjust: exact; print-color-adjust: exact;
-    }
-  }
-
-  #fallback-msg {
-    display: none; font-family: sans-serif; color: #F87171; background: #171E2E;
-    padding: 16px; margin: 16px; border-radius: 10px; direction: rtl; text-align: right;
-  }
+/* تقارير الطباعة */
+.printable-report-monthly,.printable-report-weekly{display:none;font-family:'Cairo',sans-serif;color:#1a1a1a;background:#fff}.pr-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1a1a1a;padding-bottom:8px;margin-bottom:10px}.pr-title{font-size:18px;font-weight:800;margin:0}.pr-sub{font-size:11px;color:#666;margin:2px 0 0}.pr-meta{font-size:10px;color:#666;text-align:left;line-height:1.6}.pr-infobar{display:flex;gap:8px;margin-bottom:12px}.pr-info-card{flex:1;border:1px solid #ddd;border-radius:6px;padding:7px 10px;font-size:11px;text-align:center}.pr-info-card b{display:block;font-size:13px;margin-top:2px}.pr-legend{display:flex;gap:14px;font-size:10px;color:#444;margin-bottom:10px;flex-wrap:wrap}.pr-legend span{display:inline-flex;align-items:center;gap:4px}.pr-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.pr-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}.pr-summary-card{border:1px solid #ddd;border-radius:6px;padding:6px 8px;text-align:center}.pr-summary-num{font-size:16px;font-weight:800}.pr-summary-label{font-size:9.5px;color:#666}.printable-report-monthly table,.printable-report-weekly table{width:100%;border-collapse:collapse;font-size:9.5px}.printable-report-monthly thead,.printable-report-weekly thead{display:table-header-group}.printable-report-monthly tr,.printable-report-weekly tr{page-break-inside:avoid}.printable-report-monthly th,.printable-report-monthly td,.printable-report-weekly th,.printable-report-weekly td{border:1px solid #d5d5d5;padding:4px 3px;text-align:center}.printable-report-monthly th,.printable-report-weekly th{background:#1a1a1a!important;color:#fff!important;font-weight:700}.printable-report-monthly td:first-child,.printable-report-monthly th:first-child,.printable-report-weekly td:first-child,.printable-report-weekly th:first-child{text-align:right;font-weight:600}.printable-report-monthly tbody tr:nth-child(even),.printable-report-weekly tbody tr:nth-child(even){background:#f7f7f7!important}.printable-report-monthly tfoot td,.printable-report-weekly tfoot td{font-weight:800;background:#eee!important;border-top:2px solid #1a1a1a}.pr-status-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-weight:700}.pr-notes{margin-top:14px;font-size:10px}.pr-notes-title{font-weight:800;margin-bottom:4px}.pr-notes ul{margin:0;padding-right:16px}.pr-notes li{margin-bottom:2px}.pr-footer{display:flex;align-items:center;justify-content:space-between;margin-top:20px;font-size:10px;color:#444}.pr-sign-line{display:inline-block;min-width:140px;border-bottom:1px solid #444;margin-right:6px}
+@media print{@page{size:landscape;margin:10mm}html,body{background:#fff!important}.app-shell,.no-print{display:none!important}body[data-print-mode="monthly"] .printable-report-monthly,body[data-print-mode="weekly"] .printable-report-weekly{display:block!important;position:static;width:100%;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+#fallback-msg{display:none;color:#f87171;background:#171e2e;padding:16px;margin:16px;border-radius:10px;direction:rtl;text-align:right}
 </style>
 </head>
 <body>
-<div id="root"></div>
-<div id="fallback-msg">تعذّر تحميل التطبيق. تأكد من الاتصال بالإنترنت وحدّث الصفحة.</div>
+<div id="root"></div><div id="fallback-msg">تعذّر تحميل التطبيق. تأكد من الاتصال بالإنترنت وحدّث الصفحة.</div>
 <script>
-  window.__mounted = false;
-  window.__lastError = null;
-  window.addEventListener("error", function (ev) {
-    window.__lastError = (ev.error && ev.error.message) || ev.message || "خطأ غير معروف";
-    showFallback();
-  });
-  window.addEventListener("unhandledrejection", function (ev) {
-    window.__lastError = (ev.reason && ev.reason.message) || String(ev.reason) || "خطأ غير معروف";
-    showFallback();
-  });
-  function showFallback() {
-    var el = document.getElementById("fallback-msg");
-    if (!el) return;
-    if (window.__lastError) {
-      el.innerHTML = "تعذّر تحميل التطبيق. تفاصيل الخطأ (ابعتها لمن يساعدك):<br><code style='font-family:monospace; direction:ltr; display:block; margin-top:8px; word-break:break-all;'>" + window.__lastError + "</code>";
-    }
-    el.style.display = "block";
-  }
-  window.showFallback = showFallback;
-  setTimeout(function () {
-    if (!window.__mounted) showFallback();
-  }, 6000);
+window.__mounted=false;window.__lastError=null;
+function showFallback(){var e=document.getElementById('fallback-msg');if(e)e.style.display='block'}
+window.addEventListener('error',function(e){window.__lastError=e.message;showFallback()});
+window.addEventListener('unhandledrejection',function(e){window.__lastError=String(e.reason);showFallback()});
 </script>
 <script src="app.js"></script>
+<script>
+(function(){
+  var status={present:'حاضر',absent:'غائب',late:'متأخر',leave:'إجازة',sick:'مرضي'};
+  function toast(text){var old=document.querySelector('.export-toast');if(old)old.remove();var t=document.createElement('div');t.className='export-toast';t.textContent=text;document.body.appendChild(t);setTimeout(function(){t.remove()},2800)}
+  function exportExcel(){
+    if(!window.XLSX){toast('مكتبة Excel غير متاحة حاليًا');return}
+    var employees=[];var records={};
+    try{employees=JSON.parse(localStorage.getItem('att_employees_v1')||'[]');records=JSON.parse(localStorage.getItem('att_records_v1')||'{}')}catch(e){}
+    var rows=[];
+    employees.forEach(function(emp){var dates=records[emp.id]||{};Object.keys(dates).sort().forEach(function(date){rows.push({'الموظف':emp.name,'المسمى الوظيفي':emp.jobTitle||'','التاريخ':date,'الحالة':status[dates[date]]||dates[date]})})});
+    if(!rows.length){employees.forEach(function(emp){rows.push({'الموظف':emp.name,'المسمى الوظيفي':emp.jobTitle||'','التاريخ':'','الحالة':'بدون تسجيل'})})}
+    var sheet=XLSX.utils.json_to_sheet(rows);sheet['!cols']=[{wch:24},{wch:24},{wch:15},{wch:16}];
+    var book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'سجل الحضور');
+    XLSX.writeFile(book,'سجل-الحضور-'+new Date().toISOString().slice(0,10)+'.xlsx');toast('تم تصدير سجل الحضور بنجاح ✅');
+  }
+  function addButton(){if(document.querySelector('.export-wrap'))return;var shell=document.querySelector('.app-shell');if(!shell)return;var wrap=document.createElement('div');wrap.className='export-wrap';var b=document.createElement('button');b.className='export-btn';b.innerHTML='⬇️ تصدير سجل الحضور Excel';b.onclick=exportExcel;wrap.appendChild(b);var target=shell.querySelector('> div');if(target)target.insertBefore(wrap,target.children[1]||null);}
+  setTimeout(addButton,300);setTimeout(addButton,1200);window.addEventListener('storage',addButton);
+})();
+</script>
 </body>
 </html>
